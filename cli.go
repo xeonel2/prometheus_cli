@@ -65,6 +65,8 @@ func printQueryResponse(r QueryResponse) {
 }
 
 func query(c *Client, qry string) {
+	//fmt.Println("called query for", qry)
+
 	if qry=="" {
 		die("Error in config. Check uptime.yml")
 	}
@@ -73,7 +75,10 @@ func query(c *Client, qry string) {
 	if err != nil {
 		die("Error querying server: %s", err)
 	}
-
+	/*fmt.Printf("%+v",resp)
+	if(resp == nil || len(resp.ToText()) == 0 ){
+		 fmt.Print("\nEmpty\n")
+	}*/
 	printQueryResponse(resp)
 }
 /*func query(c *Client) {
@@ -157,7 +162,6 @@ func main() {
 	var con conf
 	con.getConf()
 	var ql=len(con.Query)
-
 	if con.Server == "" {
 		die("Server name not present. Check uptime.yml")
 	}
@@ -177,8 +181,13 @@ func main() {
 		die("CSV delimiter may be a single character only")
 	}*/
 
-	c := NewClient(*server, *timeout)
-	query(c,con)
+	c := NewClient(con.Server, *timeout)
+
+	for _,element := range con.Query {
+
+		// element is the element from someSlice for where we are
+		query(c,element)
+	}
 
 	/*switch flag.Arg(0) {
 	case "query":
