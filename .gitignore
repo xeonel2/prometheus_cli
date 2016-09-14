@@ -1,3 +1,4 @@
-prometheus_cli
 .deps
 *.tar.gz
+uptime_from_prometheus
+uptime.yml
