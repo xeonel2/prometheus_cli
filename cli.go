@@ -19,6 +19,9 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"gopkg.in/yaml.v2"
+	"io/ioutil"
+	"log"
 )
 
 var (
@@ -27,6 +30,25 @@ var (
 	useCSV   = flag.Bool("csv", true, "Whether to format output as CSV")
 	csvDelim = flag.String("csvDelimiter", ";", "Single-character delimiter to use in CSV output")
 )
+
+type conf struct {
+	Server string `yaml:"server"`
+	Query []string `yaml:"query"`
+}
+
+func (c *conf) getConf() *conf {
+
+	yamlFile, err := ioutil.ReadFile("uptime.yml")
+	if err != nil {
+		log.Printf("yamlFile.Get err   #%v ", err)
+	}
+	err = yaml.Unmarshal(yamlFile, c)
+	if err != nil {
+		log.Fatalf("Unmarshal: %v", err)
+	}
+
+	return c
+}
 
 func die(format string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, format, args...)
@@ -42,7 +64,19 @@ func printQueryResponse(r QueryResponse) {
 	}
 }
 
-func query(c *Client) {
+func query(c *Client, qry string) {
+	if qry=="" {
+		die("Error in config. Check uptime.yml")
+	}
+
+	resp, err := c.Query(qry)
+	if err != nil {
+		die("Error querying server: %s", err)
+	}
+
+	printQueryResponse(resp)
+}
+/*func query(c *Client) {
 	if flag.NArg() != 2 {
 		flag.Usage()
 		die("Please supply a query expression")
@@ -54,7 +88,7 @@ func query(c *Client) {
 	}
 
 	printQueryResponse(resp)
-}
+}*/
 
 func queryRange(c *Client) {
 	if flag.NArg() != 4 && flag.NArg() != 5 {
@@ -118,10 +152,19 @@ func usage() {
 }
 
 func main() {
-	flag.Usage = usage
-	flag.Parse()
+	/*flag.Usage = usage
+	flag.Parse()*/
+	var con conf
+	con.getConf()
+	var ql=len(con.Query)
 
-	if *server == "" {
+	if con.Server == "" {
+		die("Server name not present. Check uptime.yml")
+	}
+	if ql==0 {
+		die("Query not found. Check uptime.yml")
+	}
+	/*if *server == "" {
 		flag.Usage()
 		die("Please provide a server name.")
 	}
@@ -132,10 +175,12 @@ func main() {
 	if len(*csvDelim) != 1 {
 		flag.Usage()
 		die("CSV delimiter may be a single character only")
-	}
+	}*/
 
 	c := NewClient(*server, *timeout)
-	switch flag.Arg(0) {
+	query(c,con)
+
+	/*switch flag.Arg(0) {
 	case "query":
 		query(c)
 	case "query_range":
@@ -144,5 +189,5 @@ func main() {
 		metrics(c)
 	default:
 		die("Unknown command '%s'", flag.Arg(0))
-	}
+	}*/
 }
