@@ -16,10 +16,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"bytes"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 	"gopkg.in/yaml.v2"
+	"gopkg.in/gomail.v2"
 	"io/ioutil"
 	"log"
 )
@@ -33,7 +36,19 @@ var (
 
 type conf struct {
 	Server string `yaml:"server"`
-	Query []string `yaml:"query"`
+	EmailTo string `yaml:"emailto"`
+	EmailFrom string `yaml:"emailfrom"`
+	SmtpHost string `yaml:"smtphost"`
+	SmtpPort string `yaml:"smtpport"`
+	SmtpUser string `yaml:"smtpuser"`
+	SmtpPwd string `yaml:"smtppwd"`
+	Endpoints []Endpoint `yaml:"endpoints"`
+}
+
+type Endpoint struct {
+	EndpointName string `yaml:"name"`
+	EndpointFailedQuery string `yaml:"failed"`
+	EndpointSuccessQuery string `yaml:"success"`
 }
 
 func (c *conf) getConf() *conf {
@@ -56,44 +71,71 @@ func die(format string, args ...interface{}) {
 	os.Exit(1)
 }
 
-func printQueryResponse(r QueryResponse) {
+func queryToString(r QueryResponse) string {
 	if *useCSV {
-		fmt.Print(r.ToCSV(rune((*csvDelim)[0])))
-	} else {
-		fmt.Print(r.ToText())
+		return fmt.Sprint(r.ToCSV(rune((*csvDelim)[0])))
 	}
+	return fmt.Sprint(r.ToText())
 }
 
-func query(c *Client, qry string) {
-	//fmt.Println("called query for", qry)
+func printQueryResponse(r QueryResponse) {
+	fmt.Print(queryToString(r))
+}
 
-	if qry=="" {
+func query(c *Client, endpoint Endpoint) {
+	//fmt.Println("called query for", qry)
+	efailqry := endpoint.EndpointFailedQuery
+	esuccqry := endpoint.EndpointSuccessQuery
+	ename := endpoint.EndpointName
+	var xx2 float64= 0
+	var xx5 float64= 0
+	if (efailqry=="" || esuccqry=="") {
 		die("Error in config. Check uptime.yml")
 	}
-
-	resp, err := c.Query(qry)
+	sresp, err := c.Query(esuccqry)
 	if err != nil {
 		die("Error querying server: %s", err)
 	}
-	/*fmt.Printf("%+v",resp)
-	if(resp == nil || len(resp.ToText()) == 0 ){
-		 fmt.Print("\nEmpty\n")
-	}*/
-	printQueryResponse(resp)
+	//fmt.Printf("%+v",sresp)
+	if(sresp == nil || len(queryToString(sresp)) == 0 ){
+		xx2=0
+	}else{
+		xx2, err=strconv.ParseFloat(strings.Split(queryToString(sresp),";")[1], 64)
+		if err != nil {
+			die("Error parsing query: %s", err)
+		}
+	}
+
+	fresp, err := c.Query(efailqry)
+	if err != nil {
+		die("Error querying server: %s", err)
+	}
+	if(fresp == nil || len(queryToString(fresp)) == 0 ){
+		xx5=0
+	}else{
+		xx5, err=strconv.ParseFloat(strings.Split(queryToString(fresp),";")[1], 64)
+		if err != nil {
+			die("Error parsing query: %s", err)
+		}
+	}
+	if(xx2==0 && xx5==0){
+		fmt.Println(ename)
+		fmt.Println("Endpoint not used!")
+		MailBuffer.WriteString(ename)
+		MailBuffer.WriteString("\nEndpoint not used!\n")
+
+	}else {
+		fmt.Println(ename)
+		fmt.Println("2xx:", xx2)
+		fmt.Println("5xx:", xx5)
+		fmt.Println("uptime:", (xx2 / (xx2 + xx5)) * 100, "%")
+		MailBuffer.WriteString(ename)
+		MailBuffer.WriteString("\nUptime: ")
+		MailBuffer.WriteString(fmt.Sprint((xx2 / (xx2 + xx5)) * 100))
+		MailBuffer.WriteString("%\n")
+	}
+
 }
-/*func query(c *Client) {
-	if flag.NArg() != 2 {
-		flag.Usage()
-		die("Please supply a query expression")
-	}
-
-	resp, err := c.Query(flag.Arg(1))
-	if err != nil {
-		die("Error querying server: %s", err)
-	}
-
-	printQueryResponse(resp)
-}*/
 
 func queryRange(c *Client) {
 	if flag.NArg() != 4 && flag.NArg() != 5 {
@@ -156,47 +198,38 @@ func usage() {
 	flag.PrintDefaults()
 }
 
+var MailBuffer *bytes.Buffer
 func main() {
-	/*flag.Usage = usage
-	flag.Parse()*/
 	var con conf
 	con.getConf()
-	var ql=len(con.Query)
+	var ql=len(con.Endpoints)
 	if con.Server == "" {
 		die("Server name not present. Check uptime.yml")
 	}
 	if ql==0 {
-		die("Query not found. Check uptime.yml")
+		die("Endpoint not present. Check uptime.yml")
 	}
-	/*if *server == "" {
-		flag.Usage()
-		die("Please provide a server name.")
-	}
-	if flag.NArg() < 1 {
-		flag.Usage()
-		die("Please provide a command.")
-	}
-	if len(*csvDelim) != 1 {
-		flag.Usage()
-		die("CSV delimiter may be a single character only")
-	}*/
 
 	c := NewClient(con.Server, *timeout)
 
-	for _,element := range con.Query {
-
-		// element is the element from someSlice for where we are
+	MailBuffer = bytes.NewBufferString("\nUptime Percentages for today:\n")
+	for _,element := range con.Endpoints {
 		query(c,element)
-	}
+		}
 
-	/*switch flag.Arg(0) {
-	case "query":
-		query(c)
-	case "query_range":
-		queryRange(c)
-	case "metrics":
-		metrics(c)
-	default:
-		die("Unknown command '%s'", flag.Arg(0))
-	}*/
+	m := gomail.NewMessage()
+	m.SetAddressHeader("From", con.EmailFrom, "Uptime from Prometheus")
+	m.SetAddressHeader("To", con.EmailTo, con.EmailTo)
+	m.SetHeader("Subject", "Uptime from prometheus")
+	m.SetBody("text/plain", MailBuffer.String())
+	porty, err := strconv.Atoi(con.SmtpPort)
+	if err != nil {
+		die("SMTP Error in config(uptime.yml):%s",err)
+	}
+	d := gomail.NewPlainDialer(con.SmtpHost, porty, con.SmtpUser, con.SmtpPwd)
+	if err := d.DialAndSend(m); err != nil {
+		panic(err)
+	}
+	fmt.Println(MailBuffer.String())
+
 }
