@@ -12,8 +12,10 @@ A tool to calculate Individual API Endpoint's uptime using Prometheus server's H
      
      Example:
         server: http://localhost:9090
+        timezone: Asia/Calcutta
         emailfrom: monitoring@example.com
         emailto: john_doe@example.com
+        emailsubject: "[Uptime Mail]"
         smtphost: mail.example.com
         smtpport: 25
         smtpuser: blahblah

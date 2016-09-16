@@ -36,8 +36,10 @@ var (
 
 type conf struct {
 	Server string `yaml:"server"`
+	Timezone string `yaml:"timezone"`
 	EmailTo string `yaml:"emailto"`
 	EmailFrom string `yaml:"emailfrom"`
+	EmailSubject string `yaml:"emailsubject"`
 	SmtpHost string `yaml:"smtphost"`
 	SmtpPort string `yaml:"smtpport"`
 	SmtpUser string `yaml:"smtpuser"`
@@ -77,6 +79,7 @@ func queryToString(r QueryResponse) string {
 	}
 	return fmt.Sprint(r.ToText())
 }
+
 
 func printQueryResponse(r QueryResponse) {
 	fmt.Print(queryToString(r))
@@ -121,18 +124,37 @@ func query(c *Client, endpoint Endpoint) {
 	if(xx2==0 && xx5==0){
 		fmt.Println(ename)
 		fmt.Println("Endpoint not used!")
+		MailBuffer.WriteString("\n<td>")
 		MailBuffer.WriteString(ename)
-		MailBuffer.WriteString("\nEndpoint not used!\n")
+		MailBuffer.WriteString("\n</td>")
+		MailBuffer.WriteString("\n<td>")
+		MailBuffer.WriteString("0")
+		MailBuffer.WriteString("\n</td>")
+		MailBuffer.WriteString("\n<td>")
+		MailBuffer.WriteString("0")
+		MailBuffer.WriteString("\n</td>")
+		MailBuffer.WriteString("\n<td>")
+		MailBuffer.WriteString("100%")
+		MailBuffer.WriteString("\n</td>")
 
 	}else {
 		fmt.Println(ename)
 		fmt.Println("2xx:", xx2)
 		fmt.Println("5xx:", xx5)
 		fmt.Println("uptime:", (xx2 / (xx2 + xx5)) * 100, "%")
+		MailBuffer.WriteString("\n<td>")
 		MailBuffer.WriteString(ename)
-		MailBuffer.WriteString("\nUptime: ")
+		MailBuffer.WriteString("\n</td>")
+		MailBuffer.WriteString("\n<td>")
+		MailBuffer.WriteString(fmt.Sprint(xx2))
+		MailBuffer.WriteString("\n</td>")
+		MailBuffer.WriteString("\n<td>")
+		MailBuffer.WriteString(fmt.Sprint(xx5))
+		MailBuffer.WriteString("\n</td>")
+		MailBuffer.WriteString("\n<td>")
 		MailBuffer.WriteString(fmt.Sprint((xx2 / (xx2 + xx5)) * 100))
 		MailBuffer.WriteString("%\n")
+		MailBuffer.WriteString("\n</td>")
 	}
 
 }
@@ -210,23 +232,62 @@ func main() {
 		die("Endpoint not present. Check uptime.yml")
 	}
 
+	loc ,e := time.LoadLocation(con.Timezone)
+	if e!=nil{}
+	istdate := fmt.Sprint((time.Now().In(loc)).Format("2006-01-02"))
+
+
+	MailBuffer = bytes.NewBufferString("<html>")
+	MailBuffer.WriteString("\n<head>")
+	MailBuffer.WriteString(fmt.Sprintf("\n<h1><b>Uptime Percentile for %s:</b></h1>\n",istdate))
+	MailBuffer.WriteString("\n<style>")
+	MailBuffer.WriteString("\ntable {")
+	MailBuffer.WriteString("\n    font-family: arial, sans-serif;")
+	MailBuffer.WriteString("\n    border-collapse: collapse;")
+	MailBuffer.WriteString("\n    width: 100%;")
+	MailBuffer.WriteString("\n}")
+	MailBuffer.WriteString("\n")
+	MailBuffer.WriteString("\ntd, th {")
+	MailBuffer.WriteString("\n    border: 1px solid #dddddd;")
+	MailBuffer.WriteString("\n    text-align: left;")
+	MailBuffer.WriteString("\n    padding: 8px;")
+	MailBuffer.WriteString("\n}")
+	MailBuffer.WriteString("\n")
+	MailBuffer.WriteString("\ntr:nth-child(even) {")
+	MailBuffer.WriteString("\n    background-color: #dddddd;")
+	MailBuffer.WriteString("\n}")
+	MailBuffer.WriteString("\n</style>\n")
+	MailBuffer.WriteString("\n</head>")
+	MailBuffer.WriteString("\n<body>")
+	MailBuffer.WriteString("\n<table>")
+	MailBuffer.WriteString("\n<tr>")
+	MailBuffer.WriteString("\n<th>Endpoint</th>")
+	MailBuffer.WriteString("\n<th>2XX</th>")
+	MailBuffer.WriteString("\n<th>5XX</th>")
+	MailBuffer.WriteString("\n<th>Uptime</th>")
+	MailBuffer.WriteString("\n</tr>")
 	c := NewClient(con.Server, *timeout)
-
-	MailBuffer = bytes.NewBufferString("\nUptime Percentages for today:\n")
 	for _,element := range con.Endpoints {
+		MailBuffer.WriteString("\n<tr>")
 		query(c,element)
-		}
+		MailBuffer.WriteString("\n</tr>")
+	}
 
+	MailBuffer.WriteString("\n</table>")
+	MailBuffer.WriteString("\n</body>")
+	MailBuffer.WriteString("\n</html>")
+	SubjectBuffer := bytes.NewBufferString(con.EmailSubject)
 	m := gomail.NewMessage()
 	m.SetAddressHeader("From", con.EmailFrom, "Uptime from Prometheus")
 	m.SetAddressHeader("To", con.EmailTo, con.EmailTo)
-	m.SetHeader("Subject", "Uptime from prometheus")
-	m.SetBody("text/plain", MailBuffer.String())
+	SubjectBuffer.WriteString(fmt.Sprintf(" for %s", istdate ))
+	m.SetHeader("Subject", SubjectBuffer.String())
+	m.SetBody("text/html", MailBuffer.String())
 	porty, err := strconv.Atoi(con.SmtpPort)
 	if err != nil {
 		die("SMTP Error in config(uptime.yml):%s",err)
 	}
-	d := gomail.NewPlainDialer(con.SmtpHost, porty, con.SmtpUser, con.SmtpPwd)
+	d := gomail.NewDialer(con.SmtpHost, porty, con.SmtpUser, con.SmtpPwd)
 	if err := d.DialAndSend(m); err != nil {
 		panic(err)
 	}
