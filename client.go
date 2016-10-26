@@ -98,10 +98,6 @@ func (c *Client) Query(expr string) (QueryResponse, error) {
 	if err := json.Unmarshal(buf, &r); err != nil {
 		return nil, err
 	}
-	fmt.Println("101: value of r :: %+v %+t", r, r)
-	/*if r.Version != 1 {
-		return nil, fmt.Errorf("unsupported JSON format version %d", r.Version)
-	}*/
 
 	var typedResp QueryResponse
 	switch r.Data.Type {

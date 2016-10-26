@@ -79,7 +79,7 @@ type MatrixQueryResponse struct {
 }
 
 func (r ScalarQueryResponse) ToText() string {
-	return fmt.Sprint(r.Value)
+		return fmt.Sprint(r.Value)
 }
 
 func formatCSV(rows [][]string, delim rune) string {
@@ -116,6 +116,7 @@ func (r VectorQueryResponse) ToText() string {
 		}
 		lines = append(lines, fmt.Sprintf("%s %s@%.3f\n", v.Metric, metricvalue, metrictimestamp))
 	}
+
 	return strings.Join(lines, "")
 }
 

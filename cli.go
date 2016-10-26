@@ -32,6 +32,7 @@ var (
 	timeout  = flag.Duration("timeout", time.Minute, "Timeout to use when querying the Prometheus server")
 	useCSV   = flag.Bool("csv", true, "Whether to format output as CSV")
 	csvDelim = flag.String("csvDelimiter", ";", "Single-character delimiter to use in CSV output")
+	config = flag.String("config", "uptime.yml", "Config file path")
 )
 
 type conf struct {
@@ -53,9 +54,9 @@ type Endpoint struct {
 	EndpointSuccessQuery string `yaml:"success"`
 }
 
-func (c *conf) getConf() *conf {
+func (c *conf) getConf(configfile string) *conf {
 
-	yamlFile, err := ioutil.ReadFile("uptime.yml")
+	yamlFile, err := ioutil.ReadFile(configfile)
 	if err != nil {
 		log.Printf("yamlFile.Get err   #%v ", err)
 	}
@@ -99,7 +100,6 @@ func query(c *Client, endpoint Endpoint) {
 	if err != nil {
 		die("Error querying server: %s", err)
 	}
-	//fmt.Printf("%+v",sresp)
 	if(sresp == nil || len(queryToString(sresp)) == 0 ){
 		xx2=0
 	}else{
@@ -212,18 +212,19 @@ func metrics(c *Client) {
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, "Usage:\n")
-	fmt.Fprintf(os.Stderr, "\t%s [flags] query <expression>\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "\t%s [flags] query_range <expression> <end_timestamp> <range_seconds> [<step_seconds>]\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "\t%s [flags] metrics\n", os.Args[0])
-	fmt.Printf("\nFlags:\n")
-	flag.PrintDefaults()
+	//fmt.Fprintf(os.Stderr, "Usage:\n")
+	//fmt.Fprintf(os.Stderr, "\t%s [flags] query <expression>\n", os.Args[0])
+	//fmt.Fprintf(os.Stderr, "\t%s [flags] query_range <expression> <end_timestamp> <range_seconds> [<step_seconds>]\n", os.Args[0])
+	//fmt.Fprintf(os.Stderr, "\t%s [flags] metrics\n", os.Args[0])
+	//fmt.Printf("\nFlags:\n")
+	//flag.PrintDefaults()
 }
 
 var MailBuffer *bytes.Buffer
 func main() {
 	var con conf
-	con.getConf()
+	flag.Parse()
+	con.getConf(*config)
 	var ql=len(con.Endpoints)
 	if con.Server == "" {
 		die("Server name not present. Check uptime.yml")
