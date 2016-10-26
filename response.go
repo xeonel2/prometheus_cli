@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-
 	"github.com/prometheus/common/model"
 )
 
@@ -36,6 +35,16 @@ type StubQueryResponse struct {
 	Version int         `json:"version"`
 }
 
+type StubQueryResponseV1 struct {
+	Status    string    `json:"status"`
+	Data   ResultData `json:"data"`
+
+}
+type ResultData struct {
+	Type    string      `json:"resultType"`
+	Value   interface{} `json:"result"`
+}
+
 // Type for unserializing a scalar-typed Prometheus query response.
 type ScalarQueryResponse struct {
 	Value string `json:"value"`
@@ -43,6 +52,17 @@ type ScalarQueryResponse struct {
 
 // Type for unserializing a vector-typed Prometheus query response.
 type VectorQueryResponse struct {
+
+	Data struct{
+		     Value []struct {
+			     Metric    model.Metric `json:"metric"`
+			     Value     []interface{}  `json:"value"`
+		     } `json:"result"`
+	     }
+
+}
+
+type VectorQueryResponseV0 struct {
 	Value []struct {
 		Metric    model.Metric `json:"metric"`
 		Value     string       `json:"value"`
@@ -84,20 +104,37 @@ func (r ScalarQueryResponse) ToCSV(delim rune) string {
 }
 
 func (r VectorQueryResponse) ToText() string {
-	lines := make([]string, 0, len(r.Value))
-	for _, v := range r.Value {
-		lines = append(lines, fmt.Sprintf("%s %s@%.3f\n", v.Metric, v.Value, v.Timestamp))
+	lines := make([]string, 0, len(r.Data.Value))
+	var metricvalue string
+	var metrictimestamp float64
+	for _, v := range r.Data.Value {
+		var ok bool
+		if metricvalue, ok = v.Value[1].(string); ok {
+			metrictimestamp = v.Value[0].(float64)
+		}else if metrictimestamp, ok = v.Value[1].(float64); ok {
+			metricvalue = v.Value[0].(string)
+		}
+		lines = append(lines, fmt.Sprintf("%s %s@%.3f\n", v.Metric, metricvalue, metrictimestamp))
 	}
 	return strings.Join(lines, "")
 }
 
 func (r VectorQueryResponse) ToCSV(delim rune) string {
-	rows := make([][]string, 0, len(r.Value))
-	for _, v := range r.Value {
+	rows := make([][]string, 0, len(r.Data.Value))
+	var metricvalue string
+	var metrictimestamp float64
+
+	for _, v := range r.Data.Value {
+		var ok bool
+		if metricvalue, ok = v.Value[1].(string); ok {
+			metrictimestamp = v.Value[0].(float64)
+		}else if metrictimestamp, ok = v.Value[1].(float64); ok {
+			metricvalue = v.Value[0].(string)
+		}
 		rows = append(rows, []string{
 			v.Metric.String(),
-			v.Value,
-			strconv.FormatFloat(v.Timestamp, 'f', -1, 64),
+			metricvalue,
+			strconv.FormatFloat(metrictimestamp, 'f', -1, 64),
 		})
 	}
 	return formatCSV(rows, delim)

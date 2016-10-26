@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	queryPath      = "/api/query"
+	queryPath      = "/api/v1/query"
 	queryRangePath = "/api/query_range"
 	metricsPath    = "/api/metrics"
 
@@ -79,7 +79,7 @@ func (c *Client) Query(expr string) (QueryResponse, error) {
 	u.Path = strings.TrimRight(u.Path, "/") + queryPath
 	q := u.Query()
 
-	q.Set("expr", expr)
+	q.Set("query", expr)
 	u.RawQuery = q.Encode()
 
 	resp, err := c.httpClient.Get(u.String())
@@ -89,22 +89,24 @@ func (c *Client) Query(expr string) (QueryResponse, error) {
 	defer resp.Body.Close()
 
 	buf, err := ioutil.ReadAll(resp.Body)
+	//fmt.Println("92: Response for %s :: %+v",resp)
 	if err != nil {
 		return nil, err
 	}
 
-	var r StubQueryResponse
+	var r StubQueryResponseV1
 	if err := json.Unmarshal(buf, &r); err != nil {
 		return nil, err
 	}
-	if r.Version != 1 {
+	fmt.Println("101: value of r :: %+v %+t", r, r)
+	/*if r.Version != 1 {
 		return nil, fmt.Errorf("unsupported JSON format version %d", r.Version)
-	}
+	}*/
 
 	var typedResp QueryResponse
-	switch r.Type {
+	switch r.Data.Type {
 	case errorType:
-		return nil, fmt.Errorf("query error: %s", r.Value.(string))
+		return nil, fmt.Errorf("query error: %s", r.Data.Value.(string))
 	case scalarType:
 		typedResp = &ScalarQueryResponse{}
 	case vectorType:
@@ -112,7 +114,7 @@ func (c *Client) Query(expr string) (QueryResponse, error) {
 	case matrixType:
 		typedResp = &MatrixQueryResponse{}
 	default:
-		return nil, fmt.Errorf("invalid response type %s", r.Type)
+		return nil, fmt.Errorf("invalid response type %s", r.Data.Type)
 	}
 
 	if err := json.Unmarshal(buf, typedResp); err != nil {
