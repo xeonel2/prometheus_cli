@@ -45,6 +45,7 @@ type conf struct {
 	SmtpPort string `yaml:"smtpport"`
 	SmtpUser string `yaml:"smtpuser"`
 	SmtpPwd string `yaml:"smtppwd"`
+	ShowCount bool `yaml:"showcount"`
 	Endpoints []Endpoint `yaml:"endpoints"`
 }
 
@@ -127,12 +128,14 @@ func query(c *Client, endpoint Endpoint) {
 		MailBuffer.WriteString("\n<td>")
 		MailBuffer.WriteString(ename)
 		MailBuffer.WriteString("\n</td>")
-		MailBuffer.WriteString("\n<td>")
-		MailBuffer.WriteString("0")
-		MailBuffer.WriteString("\n</td>")
-		MailBuffer.WriteString("\n<td>")
-		MailBuffer.WriteString("0")
-		MailBuffer.WriteString("\n</td>")
+		if(ShowCount) {
+			MailBuffer.WriteString("\n<td>")
+			MailBuffer.WriteString("0")
+			MailBuffer.WriteString("\n</td>")
+			MailBuffer.WriteString("\n<td>")
+			MailBuffer.WriteString("0")
+			MailBuffer.WriteString("\n</td>")
+		}
 		MailBuffer.WriteString("\n<td>")
 		MailBuffer.WriteString("100%")
 		MailBuffer.WriteString("\n</td>")
@@ -145,12 +148,14 @@ func query(c *Client, endpoint Endpoint) {
 		MailBuffer.WriteString("\n<td>")
 		MailBuffer.WriteString(ename)
 		MailBuffer.WriteString("\n</td>")
-		MailBuffer.WriteString("\n<td>")
-		MailBuffer.WriteString(fmt.Sprint(xx2))
-		MailBuffer.WriteString("\n</td>")
-		MailBuffer.WriteString("\n<td>")
-		MailBuffer.WriteString(fmt.Sprint(xx5))
-		MailBuffer.WriteString("\n</td>")
+		if(ShowCount) {
+			MailBuffer.WriteString("\n<td>")
+			MailBuffer.WriteString(fmt.Sprint(xx2))
+			MailBuffer.WriteString("\n</td>")
+			MailBuffer.WriteString("\n<td>")
+			MailBuffer.WriteString(fmt.Sprint(xx5))
+			MailBuffer.WriteString("\n</td>")
+		}
 		MailBuffer.WriteString("\n<td>")
 		MailBuffer.WriteString(fmt.Sprint((xx2 / (xx2 + xx5)) * 100))
 		MailBuffer.WriteString("%\n")
@@ -221,10 +226,13 @@ func usage() {
 }
 
 var MailBuffer *bytes.Buffer
+var ShowCount *bool
 func main() {
 	var con conf
 	flag.Parse()
 	con.getConf(*config)
+	ShowCount=new(bool)
+	ShowCount=con.ShowCount
 	var ql=len(con.Endpoints)
 	if con.Server == "" {
 		die("Server name not present. Check uptime.yml")
@@ -236,7 +244,6 @@ func main() {
 	loc ,e := time.LoadLocation(con.Timezone)
 	if e!=nil{}
 	istdate := fmt.Sprint((time.Now().In(loc)).Format("2006-01-02"))
-
 
 	MailBuffer = bytes.NewBufferString("<html>")
 	MailBuffer.WriteString("\n<head>")
@@ -263,8 +270,10 @@ func main() {
 	MailBuffer.WriteString("\n<table>")
 	MailBuffer.WriteString("\n<tr>")
 	MailBuffer.WriteString("\n<th>Endpoint</th>")
-	MailBuffer.WriteString("\n<th>2XX</th>")
-	MailBuffer.WriteString("\n<th>5XX</th>")
+	if(ShowCount) {
+		MailBuffer.WriteString("\n<th>2XX</th>")
+		MailBuffer.WriteString("\n<th>5XX</th>")
+	}
 	MailBuffer.WriteString("\n<th>Uptime</th>")
 	MailBuffer.WriteString("\n</tr>")
 	c := NewClient(con.Server, *timeout)
