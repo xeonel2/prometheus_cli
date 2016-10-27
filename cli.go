@@ -87,7 +87,7 @@ func printQueryResponse(r QueryResponse) {
 	fmt.Print(queryToString(r))
 }
 
-func query(c *Client, endpoint Endpoint) {
+func query(c *Client, endpoint Endpoint, ShowCount bool) {
 	//fmt.Println("called query for", qry)
 	efailqry := endpoint.EndpointFailedQuery
 	esuccqry := endpoint.EndpointSuccessQuery
@@ -226,13 +226,11 @@ func usage() {
 }
 
 var MailBuffer *bytes.Buffer
-var ShowCount *bool
 func main() {
 	var con conf
 	flag.Parse()
 	con.getConf(*config)
-	ShowCount=new(bool)
-	ShowCount=con.ShowCount
+	var ShowCount=con.ShowCount
 	var ql=len(con.Endpoints)
 	if con.Server == "" {
 		die("Server name not present. Check uptime.yml")
@@ -279,7 +277,7 @@ func main() {
 	c := NewClient(con.Server, *timeout)
 	for _,element := range con.Endpoints {
 		MailBuffer.WriteString("\n<tr>")
-		query(c,element)
+		query(c,element,ShowCount)
 		MailBuffer.WriteString("\n</tr>")
 	}
 
